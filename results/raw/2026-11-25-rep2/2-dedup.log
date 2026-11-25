@@ -1,0 +1,128 @@
+# 2-dedup  2026-11-25 17:54:41  image=redis:8.10.2-alpine  n=100000 c=50
+
+===== 적재: 요청 ID 1000000개 (Lua 루프 한 번, 서버 안 처리 시간) =====
+set: 새로 추가=1000000 / 1000000, 소요=1957ms, used_memory 증가=63284384B
+> BF.RESERVE lab:dup:bf 0.001 1000000
+OK
+bf: 새로 추가=999940 / 1000000, 소요=2188ms, used_memory 증가=2141152B
+> CF.RESERVE lab:dup:cf 1000000
+OK
+cf: 새로 추가=992556 / 1000000, 소요=2087ms, used_memory 증가=2196032B
+
+===== 메모리 =====
+> MEMORY USAGE lab:dup:set SAMPLES 0
+42388694
+> OBJECT ENCODING lab:dup:set
+hashtable
+> MEMORY USAGE lab:dup:bf
+1977664
+> BF.INFO lab:dup:bf
+Capacity
+1000000
+Size
+1977632
+Number of filters
+1
+Number of items inserted
+999940
+Expansion rate
+2
+> MEMORY USAGE lab:dup:cf
+2097256
+> CF.INFO lab:dup:cf
+Size
+2097224
+Number of buckets
+524288
+Number of filters
+2
+Number of items inserted
+992556
+Number of items deleted
+0
+Bucket size
+2
+Expansion rate
+1
+Max iterations
+20
+
+===== 중복 판정: 이미 넣은 ID를 다시 넣기 =====
+> SADD lab:dup:set req-000000000005
+0
+> BF.ADD lab:dup:bf req-000000000005
+0
+> CF.ADDNX lab:dup:cf req-000000000005
+0
+
+===== 거짓 양성: 넣지 않은 ID 100000개 조회 =====
+set: 있다고 답한 수=0 / 100000, 거짓 양성률=0.0000%
+bf: 있다고 답한 수=53 / 100000, 거짓 양성률=0.0530%
+cf: 있다고 답한 수=1524 / 100000, 거짓 양성률=1.5240%
+(참고) 넣은 ID 100000개 조회. 거짓 음성은 없어야 한다.
+set: 있다고 답한 수=100000 / 100000
+bf: 있다고 답한 수=100000 / 100000
+cf: 있다고 답한 수=100000 / 100000
+
+===== 삭제 =====
+> SREM lab:dup:set req-000000000005
+1
+> BF.DEL lab:dup:bf req-000000000005
+ERR unknown command 'BF.DEL', with args beginning with: 'lab:dup:bf' 'req-000000000005' 
+
+--- CF.ADD는 같은 항목을 또 넣는다. 두 번 들어간 항목은 두 번 지워야 사라진다
+> CF.ADD lab:dup:cf req-000000000006
+1
+> CF.DEL lab:dup:cf req-000000000006
+1
+> CF.EXISTS lab:dup:cf req-000000000006
+1
+> CF.DEL lab:dup:cf req-000000000006
+1
+> CF.EXISTS lab:dup:cf req-000000000006
+0
+
+===== 처리량 =====
+> redis-benchmark -n 100000 -c 50 -P 1 -r 1000000 SADD lab:dup:bench:set req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"SADD lab:dup:bench:set req-__rand_int__","239808.16","0.123","0.040","0.103","0.175","0.319","19.295"
+> redis-benchmark -n 100000 -c 50 -P 1 -r 1000000 BF.ADD lab:dup:bench:bf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"BF.ADD lab:dup:bench:bf req-__rand_int__","246305.42","0.115","0.032","0.103","0.175","0.303","2.311"
+> redis-benchmark -n 100000 -c 50 -P 1 -r 1000000 SISMEMBER lab:dup:set req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"SISMEMBER lab:dup:set req-__rand_int__","227790.42","0.145","0.024","0.119","0.319","0.503","0.919"
+> redis-benchmark -n 100000 -c 50 -P 1 -r 1000000 BF.EXISTS lab:dup:bf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"BF.EXISTS lab:dup:bf req-__rand_int__","226757.36","0.122","0.032","0.119","0.175","0.295","0.919"
+> redis-benchmark -n 100000 -c 50 -P 1 -r 1000000 CF.EXISTS lab:dup:cf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"CF.EXISTS lab:dup:cf req-__rand_int__","229357.80","0.121","0.032","0.119","0.175","0.319","0.775"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 1000000 SADD lab:dup:bench:set req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"SADD lab:dup:bench:set req-__rand_int__","1041666.69","0.712","0.184","0.687","0.999","1.559","2.767"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 1000000 BF.ADD lab:dup:bench:bf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"BF.ADD lab:dup:bench:bf req-__rand_int__","1030927.81","0.713","0.184","0.711","0.919","1.119","1.279"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 1000000 SISMEMBER lab:dup:set req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"SISMEMBER lab:dup:set req-__rand_int__","1219512.12","0.608","0.144","0.599","0.815","1.063","1.399"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 1000000 BF.EXISTS lab:dup:bf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"BF.EXISTS lab:dup:bf req-__rand_int__","1639344.25","0.433","0.168","0.431","0.575","0.719","1.015"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 1000000 CF.EXISTS lab:dup:cf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"CF.EXISTS lab:dup:cf req-__rand_int__","1724138.00","0.418","0.088","0.415","0.567","0.807","1.391"
+
+===== 요약 (label,pipeline,rps,p50_ms,p99_ms) =====
+label,pipeline,rps,p50_ms,p99_ms
+sadd,1,239808.16,0.103,0.319
+bf.add,1,246305.42,0.103,0.303
+sismember,1,227790.42,0.119,0.503
+bf.exists,1,226757.36,0.119,0.295
+cf.exists,1,229357.80,0.119,0.319
+sadd,16,1041666.69,0.687,1.559
+bf.add,16,1030927.81,0.711,1.119
+sismember,16,1219512.12,0.599,1.063
+bf.exists,16,1639344.25,0.431,0.719
+cf.exists,16,1724138.00,0.415,0.807

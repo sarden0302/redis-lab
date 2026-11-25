@@ -1,0 +1,632 @@
+# 7-cluster-functions  2026-11-25 18:23:43  image=redis:8.10.2-alpine  node-timeout=15000ms
+
+===== 준비: 이전 rlab-cluster 리소스를 지우고 마스터 3 + 레플리카 3 클러스터 생성 =====
+> redis-cli --cluster create 10.231.77.11:6379 10.231.77.12:6379 10.231.77.13:6379 10.231.77.14:6379 10.231.77.15:6379 10.231.77.16:6379 --cluster-replicas 1 --cluster-yes
+>>> Performing hash slots allocation on 6 nodes...
+Master[0] -> Slots 0 - 5460
+Master[1] -> Slots 5461 - 10922
+Master[2] -> Slots 10923 - 16383
+Adding replica 10.231.77.15:6379 to 10.231.77.11:6379
+Adding replica 10.231.77.16:6379 to 10.231.77.12:6379
+Adding replica 10.231.77.14:6379 to 10.231.77.13:6379
+M: 46458afc40e40e5feeb9ea7b5884882f1016c653 10.231.77.11:6379
+   slots:[0-5460] (5461 slots) master
+M: 265f00df2ceac7dca2b21563825eaa3f1ffa9656 10.231.77.12:6379
+   slots:[5461-10922] (5462 slots) master
+M: d7811d4ba5c980d3b4129e549bc16babd2e9ae68 10.231.77.13:6379
+   slots:[10923-16383] (5461 slots) master
+S: e3225bfabd459c98eb1b75cbbb0f2f5ed3a32b8c 10.231.77.14:6379
+   replicates d7811d4ba5c980d3b4129e549bc16babd2e9ae68
+S: 0b12b9c2af523d540c9e72918c80a9bf9574a1a2 10.231.77.15:6379
+   replicates 46458afc40e40e5feeb9ea7b5884882f1016c653
+S: cded516dce4235af5e89d45dc6216aca79d3952b 10.231.77.16:6379
+   replicates 265f00df2ceac7dca2b21563825eaa3f1ffa9656
+>>> Nodes configuration updated
+>>> Assign a different config epoch to each node
+>>> Sending CLUSTER MEET messages to join the cluster
+Waiting for the cluster to join
+>>> Performing Cluster Check (using node 10.231.77.11:6379)
+M: 46458afc40e40e5feeb9ea7b5884882f1016c653 10.231.77.11:6379
+   slots:[0-5460] (5461 slots) master
+   1 additional replica(s)
+S: e3225bfabd459c98eb1b75cbbb0f2f5ed3a32b8c 10.231.77.14:6379
+   slots: (0 slots) slave
+   replicates d7811d4ba5c980d3b4129e549bc16babd2e9ae68
+M: 265f00df2ceac7dca2b21563825eaa3f1ffa9656 10.231.77.12:6379
+   slots:[5461-10922] (5462 slots) master
+   1 additional replica(s)
+M: d7811d4ba5c980d3b4129e549bc16babd2e9ae68 10.231.77.13:6379
+   slots:[10923-16383] (5461 slots) master
+   1 additional replica(s)
+S: 0b12b9c2af523d540c9e72918c80a9bf9574a1a2 10.231.77.15:6379
+   slots: (0 slots) slave
+   replicates 46458afc40e40e5feeb9ea7b5884882f1016c653
+S: cded516dce4235af5e89d45dc6216aca79d3952b 10.231.77.16:6379
+   slots: (0 slots) slave
+   replicates 265f00df2ceac7dca2b21563825eaa3f1ffa9656
+[OK] All nodes agree about slots configuration.
+>>> Check for open slots...
+>>> Check slots coverage...
+[OK] All 16384 slots covered.
+redis_version:8.10.2
+46458afc40e40e5feeb9ea7b5884882f1016c653 10.231.77.11:6379@16379 myself,master - 0 0 1 connected 0-5460
+265f00df2ceac7dca2b21563825eaa3f1ffa9656 10.231.77.12:6379@16379 master - 0 1795598651493 2 connected 5461-10922
+d7811d4ba5c980d3b4129e549bc16babd2e9ae68 10.231.77.13:6379@16379 master - 0 1795598650000 3 connected 10923-16383
+e3225bfabd459c98eb1b75cbbb0f2f5ed3a32b8c 10.231.77.14:6379@16379 slave d7811d4ba5c980d3b4129e549bc16babd2e9ae68 0 1795598651000 3 connected
+0b12b9c2af523d540c9e72918c80a9bf9574a1a2 10.231.77.15:6379@16379 slave 46458afc40e40e5feeb9ea7b5884882f1016c653 0 1795598650000 1 connected
+cded516dce4235af5e89d45dc6216aca79d3952b 10.231.77.16:6379@16379 slave 265f00df2ceac7dca2b21563825eaa3f1ffa9656 0 1795598650489 2 connected
+masters: n1 n2 n3 / replicas: n5(of n1) n6(of n2) n4(of n3)
+keys: k:3(slot 2036, n1) k:1(slot 10166, n2) k:4(slot 14099, n3)
+
+===== Q1-a. 마스터 한 곳(n1)에만 FUNCTION LOAD =====
+> [n1 master] redis-cli FUNCTION LOAD "$(cat /lab/clusterlib.lua)"
+clab
+> [n1 master] redis-cli WAIT 1 2000
+1
+| node | role | libraries | 코드 지문 |
+| n1 | master | clab  | 48e1139f582e |
+| n2 | master |  | da39a3ee5e6b |
+| n3 | master |  | da39a3ee5e6b |
+| n4 | replica |  | da39a3ee5e6b |
+| n5 | replica | clab  | 48e1139f582e |
+| n6 | replica |  | da39a3ee5e6b |
+
+===== Q1-b. redis-cli --cluster call 로 모든 노드(레플리카 포함)에 FUNCTION LOAD =====
+> [n1 master] redis-cli --cluster call 10.231.77.11:6379 FUNCTION LOAD REPLACE "$(cat /lab/ratelimit-lib.lua)" 
+10.231.77.11:6379: ratelimit
+10.231.77.14:6379: READONLY You can't write against a read only replica.
+10.231.77.12:6379: ratelimit
+10.231.77.13:6379: ratelimit
+10.231.77.15:6379: READONLY You can't write against a read only replica.
+10.231.77.16:6379: READONLY You can't write against a read only replica.
+exit=0
+> [n1 master] redis-cli WAIT 1 2000
+1
+| node | role | libraries | 코드 지문 |
+| n1 | master | clab ratelimit  | 960ad8a147fe |
+| n2 | master | ratelimit  | bc5099cfd47c |
+| n3 | master | ratelimit  | bc5099cfd47c |
+| n4 | replica | ratelimit  | bc5099cfd47c |
+| n5 | replica | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | ratelimit  | bc5099cfd47c |
+
+===== Q1-c. --cluster-only-masters 로 모든 마스터에 FUNCTION LOAD (문서 권장 방식) =====
+> [n1 master] redis-cli --cluster call 10.231.77.11:6379 FUNCTION LOAD REPLACE "$(cat /lab/clusterlib.lua)" --cluster-only-masters
+10.231.77.11:6379: clab
+10.231.77.12:6379: clab
+10.231.77.13:6379: clab
+exit=0
+| node | role | libraries | 코드 지문 |
+| n1 | master | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | replica | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+
+===== Q1-d. --cluster call 은 노드마다 따로 실행된다: 일부만 실패해도 나머지는 반영 =====
+n1 에만 dup_a(함수 dup_fn)를 올려 두고, 같은 함수 이름을 쓰는 dup_b 를 모든 마스터에 올린다
+> [n1 master] redis-cli FUNCTION LOAD "$(cat /lab/dup-a.lua)"
+dup_a
+> [n1 master] redis-cli --cluster call 10.231.77.11:6379 FUNCTION LOAD "$(cat /lab/dup-b.lua)" --cluster-only-masters
+10.231.77.11:6379: ERR Function dup_fn already exists
+10.231.77.12:6379: dup_b
+10.231.77.13:6379: dup_b
+exit=0
+| node | role | libraries | 코드 지문 |
+| n1 | master | clab dup_a ratelimit  | 720bff2b21f8 |
+| n2 | master | clab dup_b ratelimit  | aee7ea152b52 |
+| n3 | master | clab dup_b ratelimit  | aee7ea152b52 |
+| n4 | replica | clab dup_b ratelimit  | aee7ea152b52 |
+| n5 | replica | clab dup_a ratelimit  | 720bff2b21f8 |
+| n6 | replica | clab dup_b ratelimit  | aee7ea152b52 |
+-- 정리
+> [n1 master] redis-cli --cluster call 10.231.77.11:6379 FUNCTION DELETE dup_a --cluster-only-masters
+10.231.77.11:6379: OK
+10.231.77.12:6379: ERR Library not found
+10.231.77.13:6379: ERR Library not found
+exit=0
+> [n1 master] redis-cli --cluster call 10.231.77.11:6379 FUNCTION DELETE dup_b --cluster-only-masters
+10.231.77.11:6379: ERR Library not found
+10.231.77.12:6379: OK
+10.231.77.13:6379: OK
+exit=0
+| node | role | libraries | 코드 지문 |
+| n1 | master | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | replica | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+
+===== Q2-a. FCALL 키 1개: 슬롯 주인이 아닌 노드로 보내면 MOVED, -c 면 따라감 =====
+> [n1 master] redis-cli FCALL hit 1 k:1
+MOVED 10166 10.231.77.12:6379
+
+> [n1 master] redis-cli -c FCALL hit 1 k:1
+1
+265f00df2ceac7dca2b21563825eaa3f1ffa9656
+> [n6 replica] redis-cli FCALL hit 1 k:1
+MOVED 10166 10.231.77.12:6379
+
+> [n6 replica] redis-cli FCALL_RO cpeek 1 k:1
+MOVED 10166 10.231.77.12:6379
+
+> [n6 replica] redis-cli (같은 연결에서 READONLY 후) FCALL_RO cpeek 1 k:1
+OK
+1
+cded516dce4235af5e89d45dc6216aca79d3952b
+
+===== Q2-b. 서로 다른 슬롯의 키 2개 → CROSSSLOT =====
+같은 마스터 n1의 다른 슬롯 키: k:3(slot 2036), k:7(slot 1904)
+> [n1 master] redis-cli FCALL hit2 2 k:3 k:1
+CROSSSLOT Keys in request don't hash to the same slot
+
+> [n1 master] redis-cli -c FCALL hit2 2 k:3 k:1
+CROSSSLOT Keys in request don't hash to the same slot
+
+> [n1 master] redis-cli FCALL hit2 2 k:3 k:7
+CROSSSLOT Keys in request don't hash to the same slot
+
+
+===== Q2-c. 해시 태그로 같은 슬롯에 모으면 동작 =====
+slot {order:42}:stock = 8691
+slot {order:42}:coupon = 8691
+> [n1 master] redis-cli -c FCALL hit2 2 {order:42}:stock {order:42}:coupon
+1
+1
+265f00df2ceac7dca2b21563825eaa3f1ffa9656
+
+===== Q2-d. 키 0개: 보낸 노드에서 그대로 실행 =====
+n1 id=46458afc40e40e5feeb9ea7b5884882f1016c653
+n2 id=265f00df2ceac7dca2b21563825eaa3f1ffa9656
+n3 id=d7811d4ba5c980d3b4129e549bc16babd2e9ae68
+n5 id=0b12b9c2af523d540c9e72918c80a9bf9574a1a2
+> [n1 master] redis-cli FCALL whoami 0
+46458afc40e40e5feeb9ea7b5884882f1016c653
+> [n2 master] redis-cli FCALL whoami 0
+265f00df2ceac7dca2b21563825eaa3f1ffa9656
+> [n3 master] redis-cli -c FCALL whoami 0
+d7811d4ba5c980d3b4129e549bc16babd2e9ae68
+> [n5 replica] redis-cli FCALL whoami 0
+0b12b9c2af523d540c9e72918c80a9bf9574a1a2
+> [n5 replica] redis-cli FCALL whoami_rw 0
+READONLY You can't write against a read only replica.
+
+-- 키 0개로 선언하고 함수 안에서 키를 쓰면: 그 노드 소유 슬롯이면 동작, 아니면 에러
+> [n1 master] redis-cli FCALL write_nokey 0 k:3
+1
+46458afc40e40e5feeb9ea7b5884882f1016c653
+> [n1 master] redis-cli FCALL write_nokey 0 k:1
+ERR Script attempted to access a non local key in a cluster node script: write_nokey, on @user_function:31.
+
+> [n1 master] redis-cli -c FCALL write_nokey 0 k:1
+ERR Script attempted to access a non local key in a cluster node script: write_nokey, on @user_function:31.
+
+
+===== Q2-e. 슬롯 이동 중(MIGRATING/IMPORTING): ASK와 TRYAGAIN =====
+슬롯 5239(키 k:19, n1 소유)를 n2로 옮기는 중인 상태를 손으로 만든다
+> [n1 master] redis-cli SET {k:19}:present 1
+OK
+> [n2 master] redis-cli CLUSTER SETSLOT 5239 IMPORTING 46458afc40e40e5feeb9ea7b5884882f1016c653
+OK
+> [n1 master] redis-cli CLUSTER SETSLOT 5239 MIGRATING 265f00df2ceac7dca2b21563825eaa3f1ffa9656
+OK
+> [n1 master] redis-cli FCALL cpeek 1 {k:19}:missing
+ASK 5239 10.231.77.12:6379
+
+> [n1 master] redis-cli -c FCALL cpeek 1 {k:19}:missing
+
+265f00df2ceac7dca2b21563825eaa3f1ffa9656
+> [n1 master] redis-cli FCALL cpeek 1 {k:19}:present
+1
+46458afc40e40e5feeb9ea7b5884882f1016c653
+> [n1 master] redis-cli FCALL hit2 2 {k:19}:present {k:19}:missing
+TRYAGAIN Multiple keys request during rehashing of slot
+
+> [n2 master] redis-cli FCALL cpeek 1 {k:19}:missing
+MOVED 5239 10.231.77.11:6379
+
+-- 되돌림
+> [n1 master] redis-cli CLUSTER SETSLOT 5239 STABLE
+OK
+> [n2 master] redis-cli CLUSTER SETSLOT 5239 STABLE
+OK
+> [n1 master] redis-cli DEL {k:19}:present
+1
+
+===== Q3-a. SCRIPT LOAD는 보낸 노드에만 (복제 안 됨) =====
+> [n1 master] redis-cli SCRIPT LOAD "$(cat /lab/hit.lua)"  → b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4
+| node | role | SCRIPT EXISTS b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 |
+| n1 | master | 1  |
+| n2 | master | 0  |
+| n3 | master | 0  |
+| n4 | replica | 0  |
+| n5 | replica | 0  |
+| n6 | replica | 0  |
+> [n1 master] redis-cli EVALSHA b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 1 k:3
+2
+> [n1 master] redis-cli EVALSHA b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 1 k:1
+MOVED 10166 10.231.77.12:6379
+
+> [n1 master] redis-cli -c EVALSHA b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 1 k:1
+NOSCRIPT No matching script. Please use EVAL.
+
+
+===== Q3-b. EVAL 키 슬롯 규칙: CROSSSLOT, 해시 태그 =====
+> [n1 master] redis-cli EVAL return {redis.call('INCR', KEYS[1]), redis.call('INCR', KEYS[2])} 2 k:3 k:7
+CROSSSLOT Keys in request don't hash to the same slot
+
+> [n1 master] redis-cli -c EVAL return {redis.call('INCR', KEYS[1]), redis.call('INCR', KEYS[2])} 2 {order:42}:stock {order:42}:coupon
+2
+2
+
+===== Q3-c. 선언하지 않은 키 건드리기 (선언 키 k:3 은 n1) =====
+같은 노드 다른 슬롯 키: k:7(slot 1904) / 다른 노드 키: k:1(slot 10166, n2)
+> [n1 master] EVAL "$(cat /lab/touch-other.lua)" 1 k:3 k:7   # 같은 노드, 다른 슬롯
+1
+> [n1 master] EVAL "$(cat /lab/touch-other.lua)" 1 k:3 k:1    # 다른 노드
+ERR Script attempted to access a non local key in a cluster node script: 26c23b5d5344d4405129577a303f6e57074a1caa, on @user_script:3.
+
+> [n1 master] EVAL "$(cat /lab/touch-other-shebang.lua)" 1 k:3 k:7   # 같은 노드, 다른 슬롯
+ERR Script attempted to access keys that do not hash to the same slot script: 906c8459a414bc5077ce9501b99bf98bce626909, on @user_script:4.
+
+> [n1 master] EVAL "$(cat /lab/touch-other-shebang.lua)" 1 k:3 k:1    # 다른 노드
+ERR Script attempted to access a non local key in a cluster node script: 906c8459a414bc5077ce9501b99bf98bce626909, on @user_script:4.
+
+> [n1 master] EVAL "$(cat /lab/touch-other-xslot.lua)" 1 k:3 k:7   # 같은 노드, 다른 슬롯
+2
+> [n1 master] EVAL "$(cat /lab/touch-other-xslot.lua)" 1 k:3 k:1    # 다른 노드
+ERR Script attempted to access a non local key in a cluster node script: a92f2eda09f2ba2868d0fdd279f58bce1de5d147, on @user_script:4.
+
+-- 같은 확인을 Function으로 (touch_other: 플래그 없음, touch_other_x: allow-cross-slot-keys)
+> [n1 master] redis-cli FCALL touch_other 1 k:3 k:7
+ERR Script attempted to access keys that do not hash to the same slot script: touch_other, on @user_function:37.
+
+> [n1 master] redis-cli FCALL touch_other 1 k:3 k:1
+ERR Script attempted to access a non local key in a cluster node script: touch_other, on @user_function:37.
+
+> [n1 master] redis-cli FCALL touch_other_x 1 k:3 k:7
+3
+46458afc40e40e5feeb9ea7b5884882f1016c653
+> [n1 master] redis-cli FCALL touch_other_x 1 k:3 k:1
+ERR Script attempted to access a non local key in a cluster node script: touch_other_x, on @user_function:37.
+
+
+===== Q3-d. 스크립트를 모든 노드에 올리기: --cluster call SCRIPT LOAD (레플리카 포함) =====
+-- 본문이 '--' 주석으로 시작하면 redis-cli 가 옵션으로 읽어 거부한다 (touch-other.lua 첫 줄이 주석)
+> [n1 master] redis-cli --cluster call 10.231.77.11:6379 SCRIPT LOAD "$(cat /lab/touch-other.lua)" 
+Unrecognized option or bad number of args for: '-- shebang 없음: 선언하지 않은 키 ARGV[1]도 건드린다.
+exit=1
+-- hit.lua 는 첫 줄이 코드라 통과한다
+> [n1 master] redis-cli --cluster call 10.231.77.11:6379 SCRIPT LOAD "$(cat /lab/hit.lua)" 
+10.231.77.11:6379: b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4
+10.231.77.14:6379: b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4
+10.231.77.12:6379: b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4
+10.231.77.13:6379: b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4
+10.231.77.15:6379: b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4
+10.231.77.16:6379: b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4
+exit=0
+hit-once.lua 는 n1 에만 올림 → 9d85e3dd868a6353b54da7bddeb06dcc1cc09a6f
+| node | role | SCRIPT EXISTS b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 9d85e3dd868a6353b54da7bddeb06dcc1cc09a6f |
+| n1 | master | 1 1  |
+| n2 | master | 1 0  |
+| n3 | master | 1 0  |
+| n4 | replica | 1 0  |
+| n5 | replica | 1 0  |
+| n6 | replica | 1 0  |
+> [n1 master] redis-cli -c EVALSHA b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 1 k:1
+2
+-- NOSCRIPT 뒤 EVAL로 보내면 그 노드 캐시에 남는다(클라이언트 라이브러리의 EVALSHA→EVAL 대체와 같은 흐름)
+> [n2 master] redis-cli EVAL -- 장애 조치 확인용으로 한 노드에만 올리는 스크립트. 본문만 hit.lua와 다르다.
+return {redis.call('INCR', KEYS[1]), 'only-on-one-node'} 1 k:1
+3
+only-on-one-node
+> [n2 master] redis-cli SCRIPT EXISTS 9d85e3dd868a6353b54da7bddeb06dcc1cc09a6f
+1
+> [n2 master] redis-cli SCRIPT FLUSH
+OK
+
+===== Q4-a. 수동 장애 조치: 레플리카 n5 에서 CLUSTER FAILOVER =====
+> [n1 master] redis-cli FCALL hit 1 k:3
+13
+46458afc40e40e5feeb9ea7b5884882f1016c653
+> [n1 master] redis-cli WAIT 1 2000
+1
+장애 조치 전
+| node | role | libraries | 코드 지문 |
+| n1 | master | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | replica | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| node | role | SCRIPT EXISTS b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 9d85e3dd868a6353b54da7bddeb06dcc1cc09a6f |
+| n1 | master | 1 1  |
+| n2 | master | 1 0  |
+| n3 | master | 1 0  |
+| n4 | replica | 1 0  |
+| n5 | replica | 1 0  |
+| n6 | replica | 1 0  |
+> [n5 replica] redis-cli CLUSTER FAILOVER
+OK
+장애 조치 뒤: n5 role=master, n1 role=replica
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| node | role | SCRIPT EXISTS b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 9d85e3dd868a6353b54da7bddeb06dcc1cc09a6f |
+| n1 | replica | 1 1  |
+| n2 | master | 1 0  |
+| n3 | master | 1 0  |
+| n4 | replica | 1 0  |
+| n5 | master | 1 0  |
+| n6 | replica | 1 0  |
+-- 옛 마스터 n1 이 새 마스터에 다시 붙은 방식 (새 마스터 쪽 INFO stats: full=전체 동기화 횟수, partial_ok=부분 동기화 성공 횟수)
+role:slave
+master_host:10.231.77.15
+master_link_status:up
+n5 sync_full:0
+n5 sync_partial_ok:1
+> [n1 replica] redis-cli -c FCALL hit 1 k:3
+14
+0b12b9c2af523d540c9e72918c80a9bf9574a1a2
+> [n1 replica] redis-cli -c EVALSHA b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 1 k:3
+15
+> [n1 replica] redis-cli -c EVALSHA 9d85e3dd868a6353b54da7bddeb06dcc1cc09a6f 1 k:3
+NOSCRIPT No matching script. Please use EVAL.
+
+
+===== Q4-b. 새 마스터 n5 강제 종료 후 시작 (AOF 켬, SIGKILL이라 종료 시 저장 없음) =====
+> [n5 master] redis-cli CONFIG GET appendonly
+appendonly
+yes
+> [n5 master] redis-cli CONFIG GET cluster-node-timeout
+cluster-node-timeout
+15000
+> docker kill rlab-cluster-5 && docker start rlab-cluster-5
+시작 뒤 n5 role=master (node-timeout 안에 돌아와 장애 조치가 일어나지 않았는지 확인)
+1:M 25 Nov 2026 09:25:13.115 * DB loaded from base file appendonly.aof.2.base.rdb: 0.000 seconds
+1:M 25 Nov 2026 09:25:13.115 * DB loaded from incr file appendonly.aof.2.incr.aof: 0.000 seconds
+1:M 25 Nov 2026 09:25:13.115 * DB loaded from append only file: 0.001 seconds
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| node | role | SCRIPT EXISTS b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 9d85e3dd868a6353b54da7bddeb06dcc1cc09a6f |
+| n1 | replica | 1 1  |
+| n2 | master | 1 0  |
+| n3 | master | 1 0  |
+| n4 | replica | 1 0  |
+| n5 | master | 0 0  |
+| n6 | replica | 1 0  |
+> [n2 master] redis-cli -c FCALL hit 1 k:3
+16
+0b12b9c2af523d540c9e72918c80a9bf9574a1a2
+> [n2 master] redis-cli -c EVALSHA b3ca27dc794e83b5a5f41878524ae45dcb3ec4b4 1 k:3
+NOSCRIPT No matching script. Please use EVAL.
+
+
+===== Q5-a. 새 노드 n7 추가: --cluster add-node =====
+-- 먼저 n7 에 라이브러리가 있는 채로 add-node
+> [n7 -] redis-cli FUNCTION LOAD "$(cat /lab/only7.lua)"
+only7
+> redis-cli --cluster add-node 10.231.77.17:6379 10.231.77.12:6379
+>>> Adding node 10.231.77.17:6379 to cluster 10.231.77.12:6379
+>>> Performing Cluster Check (using node 10.231.77.12:6379)
+[OK] All nodes agree about slots configuration.
+>>> Check for open slots...
+>>> Check slots coverage...
+[OK] All 16384 slots covered.
+>>> Getting functions from cluster
+>>> Send FUNCTION LIST to 10.231.77.17:6379 to verify there is no functions in it
+>>> New node already contains functions and can not be added to the cluster. Use FUNCTION FLUSH and try again.
+n7 cluster_known_nodes: 1
+-- 비운 뒤 다시 add-node
+> [n7 -] redis-cli FUNCTION FLUSH
+OK
+> redis-cli --cluster add-node 10.231.77.17:6379 10.231.77.12:6379
+>>> Adding node 10.231.77.17:6379 to cluster 10.231.77.12:6379
+>>> Performing Cluster Check (using node 10.231.77.12:6379)
+[OK] All nodes agree about slots configuration.
+>>> Check for open slots...
+>>> Check slots coverage...
+[OK] All 16384 slots covered.
+>>> Getting functions from cluster
+>>> Send FUNCTION LIST to 10.231.77.17:6379 to verify there is no functions in it
+>>> Send FUNCTION RESTORE to 10.231.77.17:6379
+>>> Send CLUSTER MEET to node 10.231.77.17:6379 to make it join the cluster.
+[OK] New node added correctly.
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| n7 | master | clab ratelimit  | 960ad8a147fe |
+
+===== Q5-b. 예전 방식 슬롯 이동(SETSLOT + MIGRATE): 함수는 따라가지 않는다 =====
+> [n7 master] redis-cli FUNCTION FLUSH
+OK
+슬롯 5969(키 k:6)을 n2 → n7 로 손으로 옮긴다
+> [n2 master] redis-cli SET k:6 legacy
+OK
+> [n7 master] redis-cli CLUSTER SETSLOT 5969 IMPORTING 265f00df2ceac7dca2b21563825eaa3f1ffa9656
+OK
+> [n2 master] redis-cli CLUSTER SETSLOT 5969 MIGRATING a35dcb9f1e4d6725ae45e3327c60b5b695c53e17
+OK
+> [n2 master] redis-cli MIGRATE 10.231.77.17 6379  0 5000 KEYS k:6
+OK
+> 모든 마스터에 CLUSTER SETSLOT 5969 NODE <n7 id>
+키 k:6 소유: n7
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| n7 | master |  | da39a3ee5e6b |
+> [n2 master] redis-cli -c GET k:6
+legacy
+> [n2 master] redis-cli -c FCALL hit 1 k:6
+ERR Function not found
+
+
+===== Q5-c. redis-cli --cluster reshard (Redis 8.4+ 원자적 슬롯 이동 ASM): 함수가 따라가는가 =====
+-- n7 에는 only7 만 있고 clab/ratelimit 은 없는 상태에서 시작
+> [n7 master] redis-cli FUNCTION LOAD "$(cat /lab/only7.lua)"
+only7
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| n7 | master | only7  | 91d574fadf84 |
+옮기기 전 n2 의 키 몇 개에 FCALL hit (n2 소유 슬롯 앞쪽부터)
+k:11 slot 5503 → 1
+k:137 slot 5510 → 1
+k:243 slot 5573 → 1
+k:15 slot 5627 → 1
+k:254 slot 5651 → 1
+k:120 slot 5712 → 1
+> redis-cli --cluster reshard 10.231.77.12:6379 --cluster-from <n2 id> --cluster-to <n7 id> --cluster-slots 200 --cluster-yes
+Moving 200 slots from 10.231.77.12:6379 to 10.231.77.17:6379
+Waiting for migration task 650567312b0e851f718e1218fee4a6ae6fe44c86 to complete.
+-- n7 쪽 이동 작업 기록 (CLUSTER MIGRATION STATUS ALL 의 operation/state)
+slots=5461-5660 operation=import state=completed 
+1:M 25 Nov 2026 09:25:53.715 * Import task 650567312b0e851f718e1218fee4a6ae6fe44c86 started for slots: 5461-5660, source address: 10.231.77.12:6379
+1:M 25 Nov 2026 09:25:53.720 * Import task 650567312b0e851f718e1218fee4a6ae6fe44c86 completed for slots: 5461-5660 (imported 5 keys)
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| n7 | master | clab only7 ratelimit  | 87d2dc767be5 |
+n7 로 옮겨진 키: k:11 (slot 5503)
+> [n2 master] redis-cli -c GET k:11
+1
+> [n2 master] redis-cli -c FCALL hit 1 k:11
+2
+a35dcb9f1e4d6725ae45e3327c60b5b695c53e17
+-- n7 의 clab 을 내용이 다른 판으로 바꾼 뒤 슬롯을 더 옮기면
+> [n7 master] redis-cli FUNCTION LOAD REPLACE "$(cat /lab/clab-v2.lua)"
+clab
+> [n7 master] redis-cli FCALL clab_v2_only 0
+v2
+Moving 10 slots from 10.231.77.12:6379 to 10.231.77.17:6379
+Waiting for migration task bd9149e0d9fbf22d23d6ddd917a3cc42067b53b3 to complete.
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| n7 | master | clab only7 ratelimit  | 87d2dc767be5 |
+> [n7 master] redis-cli FCALL clab_v2_only 0
+ERR Function not found
+
+> [n7 master] redis-cli FUNCTION DELETE only7
+OK
+
+===== Q5-d. FUNCTION DUMP / FUNCTION RESTORE 로 복사 =====
+> [n7] redis-cli -h 10.231.77.13 -D "" --raw FUNCTION DUMP > /tmp/functions.dump
+dump bytes: 1634
+-- 같은 이름 라이브러리가 이미 있으면 기본 정책(APPEND)은 거부, REPLACE 는 덮어씀
+> [n7 master] redis-cli -X dump_tag FUNCTION RESTORE dump_tag < /tmp/functions.dump
+ERR Library ratelimit already exists
+
+> [n7 master] redis-cli -X dump_tag FUNCTION RESTORE dump_tag REPLACE < /tmp/functions.dump
+OK
+-- 빈 노드에 RESTORE
+> [n7 master] redis-cli FUNCTION FLUSH
+OK
+> [n2 master] redis-cli -c FCALL hit 1 k:11
+ERR Function not found
+
+> [n7 master] redis-cli -X dump_tag FUNCTION RESTORE dump_tag < /tmp/functions.dump
+OK
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| n7 | master | clab ratelimit  | 960ad8a147fe |
+> [n2 master] redis-cli -c FCALL hit 1 k:11
+3
+a35dcb9f1e4d6725ae45e3327c60b5b695c53e17
+
+===== Q6. 한 마스터에서 FUNCTION DELETE / FUNCTION FLUSH =====
+현재 마스터: 2 3 5 7 
+> [n3 master] redis-cli FUNCTION DELETE ratelimit
+OK
+> [n5 master] redis-cli FUNCTION FLUSH
+OK
+| node | role | libraries | 코드 지문 |
+| n1 | replica |  | da39a3ee5e6b |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab  | 48e1139f582e |
+| n4 | replica | clab  | 48e1139f582e |
+| n5 | master |  | da39a3ee5e6b |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| n7 | master | clab ratelimit  | 960ad8a147fe |
+> [n2 master] redis-cli -c FCALL rate_limit 1 k:1 5 60000
+1
+60000
+> [n2 master] redis-cli -c FCALL rate_limit 1 k:4 5 60000
+ERR Function not found
+
+> [n2 master] redis-cli -c FCALL hit 1 k:3
+ERR Function not found
+
+-- 복구: 두 라이브러리를 모든 마스터에 다시 올린다
+> [n2 master] redis-cli --cluster call 10.231.77.12:6379 FUNCTION LOAD REPLACE "$(cat /lab/clusterlib.lua)" --cluster-only-masters
+10.231.77.12:6379: clab
+10.231.77.15:6379: clab
+10.231.77.17:6379: clab
+10.231.77.13:6379: clab
+exit=0
+> [n2 master] redis-cli --cluster call 10.231.77.12:6379 FUNCTION LOAD REPLACE "$(cat /lab/ratelimit-lib.lua)" --cluster-only-masters
+10.231.77.12:6379: ratelimit
+10.231.77.15:6379: ratelimit
+10.231.77.17:6379: ratelimit
+10.231.77.13:6379: ratelimit
+exit=0
+| node | role | libraries | 코드 지문 |
+| n1 | replica | clab ratelimit  | 960ad8a147fe |
+| n2 | master | clab ratelimit  | 960ad8a147fe |
+| n3 | master | clab ratelimit  | 960ad8a147fe |
+| n4 | replica | clab ratelimit  | 960ad8a147fe |
+| n5 | master | clab ratelimit  | 960ad8a147fe |
+| n6 | replica | clab ratelimit  | 960ad8a147fe |
+| n7 | master | clab ratelimit  | 960ad8a147fe |
+
+===== 마무리 =====
+10.231.77.12:6379 (265f00df...) -> 4 keys | 5251 slots | 1 slaves.
+10.231.77.13:6379 (d7811d4b...) -> 0 keys | 5461 slots | 1 slaves.
+10.231.77.17:6379 (a35dcb9f...) -> 6 keys | 211 slots | 0 slaves.
+10.231.77.15:6379 (0b12b9c2...) -> 2 keys | 5461 slots | 1 slaves.
+[OK] 12 keys in 4 masters.
+0.00 keys per slot on average.
+   slots: (0 slots) slave
+   slots: (0 slots) slave
+   slots:[5671-5968],[5970-10922] (5251 slots) master
+   slots:[10923-16383] (5461 slots) master
+   slots:[5461-5670],[5969] (211 slots) master
+   slots:[0-5460] (5461 slots) master
+로그: ./results/raw/2026-11-25-cluster/7-cluster-functions.log
+rlab-cluster 리소스를 지웠습니다.

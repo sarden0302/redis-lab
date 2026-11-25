@@ -1,0 +1,4 @@
+# 실행 중 생기는 임시 파일
+*.tmp
+__pycache__/
+.DS_Store

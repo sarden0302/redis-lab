@@ -1,0 +1,135 @@
+# split-client rep1  2026-11-25 18:27:31  image=redis:8.10.2-alpine  n=100000 c=50
+# server=rlab-split-server cpus=2  client=rlab-split-client cpus=2  network=rlab-split-net
+# 실행 중인 컨테이너:
+#   rlab-split-client
+#   rlab-split-server
+
+===== 실험 1 준비 =====
+30000
+
+===== 실험 1 처리량 =====
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 10000 EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:__rand_int__ 3 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:__rand_int__ 3 1764000999000","124069.48","0.365","0.096","0.351","0.519","0.727","2.991"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 10000 EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:__rand_int__ 3 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:__rand_int__ 3 1764000999000","75244.55","0.625","0.144","0.639","0.847","1.015","2.879"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 10000 JSON.MERGE lab:sess:jw:__rand_int__ $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"JSON.MERGE lab:sess:jw:__rand_int__ $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}","62656.64","0.755","0.136","0.791","0.991","1.103","1.799"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 10000 HSET lab:sess:h:__rand_int__ lastSeenAt 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"HSET lab:sess:h:__rand_int__ lastSeenAt 1764000999000","182481.77","0.169","0.032","0.151","0.255","0.399","8.231"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 10000 JSON.SET lab:sess:j:__rand_int__ $.lastSeenAt 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"JSON.SET lab:sess:j:__rand_int__ $.lastSeenAt 1764000999000","149253.73","0.298","0.088","0.287","0.407","0.487","1.255"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 10000 EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:__rand_int__ 3 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:__rand_int__ 3 1764000999000","283286.12","2.716","0.376","2.759","3.135","3.503","4.047"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 10000 EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:__rand_int__ 3 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:__rand_int__ 3 1764000999000","119760.48","6.551","0.544","6.591","7.423","7.895","9.143"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 10000 JSON.MERGE lab:sess:jw:__rand_int__ $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"JSON.MERGE lab:sess:jw:__rand_int__ $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}","89365.51","8.822","0.656","8.927","9.719","10.791","13.983"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 10000 HSET lab:sess:h:__rand_int__ lastSeenAt 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"HSET lab:sess:h:__rand_int__ lastSeenAt 1764000999000","892857.12","0.832","0.200","0.847","1.087","1.263","1.631"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 10000 JSON.SET lab:sess:j:__rand_int__ $.lastSeenAt 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"JSON.SET lab:sess:j:__rand_int__ $.lastSeenAt 1764000999000","380228.12","2.011","0.536","2.047","2.343","2.543","2.879"
+
+===== 실험 2 준비 =====
+1000000
+
+===== 실험 2 처리량 =====
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 1000000 SADD lab:dup:bench:set req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"SADD lab:dup:bench:set req-__rand_int__","182149.36","0.160","0.032","0.151","0.247","0.359","1.183"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 1000000 BF.ADD lab:dup:bench:bf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"BF.ADD lab:dup:bench:bf req-__rand_int__","180831.83","0.159","0.032","0.151","0.239","0.327","2.471"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 1000000 SISMEMBER lab:dup:set req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"SISMEMBER lab:dup:set req-__rand_int__","176366.86","0.161","0.032","0.151","0.239","0.351","1.295"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 1000000 BF.EXISTS lab:dup:bf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"BF.EXISTS lab:dup:bf req-__rand_int__","177304.97","0.156","0.032","0.151","0.223","0.319","0.815"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 1000000 CF.EXISTS lab:dup:cf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"CF.EXISTS lab:dup:cf req-__rand_int__","176678.45","0.155","0.032","0.151","0.215","0.287","1.559"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 1000000 SADD lab:dup:bench:set req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"SADD lab:dup:bench:set req-__rand_int__","980392.19","0.758","0.248","0.735","1.095","1.887","2.727"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 1000000 BF.ADD lab:dup:bench:bf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"BF.ADD lab:dup:bench:bf req-__rand_int__","1041666.69","0.708","0.184","0.727","0.935","1.199","1.375"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 1000000 SISMEMBER lab:dup:set req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"SISMEMBER lab:dup:set req-__rand_int__","1086956.50","0.675","0.184","0.679","0.927","1.239","1.839"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 1000000 BF.EXISTS lab:dup:bf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"BF.EXISTS lab:dup:bf req-__rand_int__","1538461.62","0.456","0.152","0.447","0.631","0.831","1.447"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 1000000 CF.EXISTS lab:dup:cf req-__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"CF.EXISTS lab:dup:cf req-__rand_int__","1538461.62","0.465","0.144","0.463","0.631","0.711","0.903"
+
+===== 실험 3 준비 =====
+EVAL 본문 크기: 337바이트
+
+===== 실험 3 처리량 =====
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 100000 EVAL local count = redis.call('INCR', KEYS[1]) if count == 1 then   redis.call('PEXPIRE', KEYS[1], ARGV[2]) end local remaining = redis.call('PTTL', KEYS[1]) if remaining < 0 then   redis.call('PEXPIRE', KEYS[1], ARGV[2])   remaining = tonumber(ARGV[2]) end if count > tonumber(ARGV[1]) then   return {0, remaining} end return {1, remaining}  1 lab:rl:b:__rand_int__ 1000000000 60000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVAL local count = redis.call('INCR', KEYS[1]) if count == 1 then   redis.call('PEXPIRE', KEYS[1], ARGV[2]) end local remaining = redis.call('PTTL', KEYS[1]) if remaining < 0 then   redis.call('PEXPIRE', KEYS[1], ARGV[2])   remaining = tonumber(ARGV[2]) end if count > tonumber(ARGV[1]) then   return {0, remaining} end return {1, remaining}  1 lab:rl:b:__rand_int__ 1000000000 60000","116686.12","0.388","0.096","0.375","0.543","0.695","2.375"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 100000 EVALSHA 1b0fb4abd36055c47ee0b77d9c80c8a84163c23b 1 lab:rl:b:__rand_int__ 1000000000 60000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 1b0fb4abd36055c47ee0b77d9c80c8a84163c23b 1 lab:rl:b:__rand_int__ 1000000000 60000","134952.77","0.333","0.088","0.319","0.479","0.647","2.159"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 100000 FCALL rate_limit 1 lab:rl:b:__rand_int__ 1000000000 60000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"FCALL rate_limit 1 lab:rl:b:__rand_int__ 1000000000 60000","141843.97","0.313","0.064","0.303","0.447","0.559","1.103"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 1 -r 100000 INCR lab:rl:b:__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"INCR lab:rl:b:__rand_int__","182149.36","0.157","0.048","0.143","0.223","0.343","7.479"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 100000 EVAL local count = redis.call('INCR', KEYS[1]) if count == 1 then   redis.call('PEXPIRE', KEYS[1], ARGV[2]) end local remaining = redis.call('PTTL', KEYS[1]) if remaining < 0 then   redis.call('PEXPIRE', KEYS[1], ARGV[2])   remaining = tonumber(ARGV[2]) end if count > tonumber(ARGV[1]) then   return {0, remaining} end return {1, remaining}  1 lab:rl:b:__rand_int__ 1000000000 60000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVAL local count = redis.call('INCR', KEYS[1]) if count == 1 then   redis.call('PEXPIRE', KEYS[1], ARGV[2]) end local remaining = redis.call('PTTL', KEYS[1]) if remaining < 0 then   redis.call('PEXPIRE', KEYS[1], ARGV[2])   remaining = tonumber(ARGV[2]) end if count > tonumber(ARGV[1]) then   return {0, remaining} end return {1, remaining}  1 lab:rl:b:__rand_int__ 1000000000 60000","286532.94","2.639","0.368","2.655","3.039","3.319","4.847"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 100000 EVALSHA 1b0fb4abd36055c47ee0b77d9c80c8a84163c23b 1 lab:rl:b:__rand_int__ 1000000000 60000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 1b0fb4abd36055c47ee0b77d9c80c8a84163c23b 1 lab:rl:b:__rand_int__ 1000000000 60000","348432.06","2.140","0.328","2.143","2.487","3.599","6.335"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 100000 FCALL rate_limit 1 lab:rl:b:__rand_int__ 1000000000 60000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"FCALL rate_limit 1 lab:rl:b:__rand_int__ 1000000000 60000","374531.84","2.004","0.328","2.015","2.335","2.495","2.823"
+> redis-benchmark -h rlab-split-server -n 100000 -c 50 -P 16 -r 100000 INCR lab:rl:b:__rand_int__
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"INCR lab:rl:b:__rand_int__","1204819.38","0.606","0.136","0.599","0.815","1.047","2.015"
+
+===== 요약 (exp,label,pipeline,rps,p50_ms,p99_ms) =====
+exp,label,pipeline,rps,p50_ms,p99_ms
+1,hash-lua,1,124069.48,0.351,0.727
+1,json-lua,1,75244.55,0.639,1.015
+1,json-filter-merge,1,62656.64,0.791,1.103
+1,base-hset,1,182481.77,0.151,0.399
+1,base-json-set,1,149253.73,0.287,0.487
+1,hash-lua,16,283286.12,2.759,3.503
+1,json-lua,16,119760.48,6.591,7.895
+1,json-filter-merge,16,89365.51,8.927,10.791
+1,base-hset,16,892857.12,0.847,1.263
+1,base-json-set,16,380228.12,2.047,2.543
+2,sadd,1,182149.36,0.151,0.359
+2,bf.add,1,180831.83,0.151,0.327
+2,sismember,1,176366.86,0.151,0.351
+2,bf.exists,1,177304.97,0.151,0.319
+2,cf.exists,1,176678.45,0.151,0.287
+2,sadd,16,980392.19,0.735,1.887
+2,bf.add,16,1041666.69,0.727,1.199
+2,sismember,16,1086956.50,0.679,1.239
+2,bf.exists,16,1538461.62,0.447,0.831
+2,cf.exists,16,1538461.62,0.463,0.711
+3,eval-body,1,116686.12,0.375,0.695
+3,evalsha,1,134952.77,0.319,0.647
+3,fcall,1,141843.97,0.303,0.559
+3,base-incr,1,182149.36,0.143,0.343
+3,eval-body,16,286532.94,2.655,3.319
+3,evalsha,16,348432.06,2.143,3.599
+3,fcall,16,374531.84,2.015,2.495
+3,base-incr,16,1204819.38,0.599,1.047

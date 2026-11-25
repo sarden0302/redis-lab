@@ -1,0 +1,126 @@
+# 1-session  2026-11-25 17:55:16  image=redis:8.10.2-alpine  n=100000 c=50
+
+===== 코드 줄 수 (주석·빈 줄 제외) =====
+session-touch-hash.lua: 13
+session-touch-json.lua: 14
+JSON 단독: 명령 1줄 (JSON.MERGE key '$[?(@.state=="ACTIVE" && @.authVersion==3)]' '{...}')
+
+===== 메모리: 같은 세션 10000개 =====
+hash: MEMORY USAGE 합계=1905776B (키당 190B), used_memory 증가=2704232B (키당 270B)
+json: MEMORY USAGE 합계=3040000B (키당 304B), used_memory 증가=2887288B (키당 288B)
+jsonw: MEMORY USAGE 합계=3760000B (키당 376B), used_memory 증가=3665504B (키당 366B)
+> OBJECT ENCODING lab:sess:h:000000000001
+listpack
+> MEMORY USAGE lab:sess:h:000000000001 SAMPLES 0
+189
+> MEMORY USAGE lab:sess:j:000000000001 SAMPLES 0
+304
+> MEMORY USAGE lab:sess:jw:000000000001 SAMPLES 0
+376
+> JSON.DEBUG MEMORY lab:sess:j:000000000001
+256
+
+===== 정확성: 일치 / 버전 불일치 / BLOCKED / 키 없음 =====
+--- Hash + Lua
+> EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:000000000001 3 1764000999000
+UPDATED
+> EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:000000000001 4 1764000999000
+REJECTED
+VERSION
+> EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:blocked 3 1764000999000
+REJECTED
+STATE
+> EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:nothing 3 1764000999000
+NOT_FOUND
+> HGET lab:sess:h:000000000001 lastSeenAt
+1764000999000
+--- JSON + Lua
+> EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:000000000001 3 1764000999000
+UPDATED
+> EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:000000000001 4 1764000999000
+REJECTED
+VERSION
+> EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:blocked 3 1764000999000
+REJECTED
+STATE
+> EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:nothing 3 1764000999000
+NOT_FOUND
+> JSON.GET lab:sess:j:000000000001 $.lastSeenAt
+[1764000999000]
+--- JSON 단독: NX/XX는 경로 존재 여부만 본다
+> JSON.SET lab:sess:j:000000000002 $.lastSeenAt 1 NX
+
+> JSON.SET lab:sess:j:000000000002 $.noSuchField 1 XX
+
+> JSON.SET lab:sess:j:blocked $.lastSeenAt 1 XX
+OK
+--- JSON 단독: NUMINCRBY는 조건 없이 더한다
+> JSON.NUMINCRBY lab:sess:j:blocked $.authVersion 1
+[4]
+--- JSON 단독: 필터 경로. 감싸지 않은 문서는 조건이 맞아도 실패한다
+> JSON.MERGE lab:sess:j:000000000002 $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}
+Err wrong static path
+
+--- JSON 단독: 필터 경로 + 감싼 문서({"s":{...}})
+> JSON.MERGE lab:sess:jw:000000000001 $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000,"device":"web"}
+OK
+> JSON.MERGE lab:sess:jw:000000000001 $[?(@.state=="ACTIVE" && @.authVersion==4)] {"lastSeenAt":1}
+Err wrong static path
+
+> JSON.MERGE lab:sess:jw:blocked $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1}
+Err wrong static path
+
+> JSON.MERGE lab:sess:jw:nothing $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1}
+ERR new objects must be created at the root
+
+> JSON.NUMINCRBY lab:sess:jw:000000000001 $[?(@.state=="ACTIVE" && @.authVersion==3)].lastSeenAt 1
+[1764000999001]
+> JSON.NUMINCRBY lab:sess:jw:blocked $[?(@.state=="ACTIVE" && @.authVersion==3)].lastSeenAt 1
+[]
+> JSON.GET lab:sess:jw:000000000001
+{"s":{"state":"ACTIVE","lastSeenAt":1764000999001,"actorId":"1","actorKind":"BUYER","purpose":"SESSION","authVersion":3,"issuedAt":1764000000000,"expiresAt":1764001800000,"device":"web"}}
+
+===== 처리량 (키 10000개 중 무작위, 조건 항상 일치) =====
+> redis-benchmark -n 100000 -c 50 -P 1 -r 10000 EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:__rand_int__ 3 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:__rand_int__ 3 1764000999000","145348.83","0.306","0.072","0.295","0.439","0.663","8.487"
+> redis-benchmark -n 100000 -c 50 -P 1 -r 10000 EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:__rand_int__ 3 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:__rand_int__ 3 1764000999000","79872.20","0.587","0.096","0.591","0.751","0.943","16.623"
+> redis-benchmark -n 100000 -c 50 -P 1 -r 10000 JSON.MERGE lab:sess:jw:__rand_int__ $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"JSON.MERGE lab:sess:jw:__rand_int__ $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}","66533.60","0.706","0.096","0.711","0.871","1.095","2.623"
+> redis-benchmark -n 100000 -c 50 -P 1 -r 10000 HSET lab:sess:h:__rand_int__ lastSeenAt 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"HSET lab:sess:h:__rand_int__ lastSeenAt 1764000999000","255754.47","0.113","0.048","0.111","0.167","0.247","1.039"
+> redis-benchmark -n 100000 -c 50 -P 1 -r 10000 JSON.SET lab:sess:j:__rand_int__ $.lastSeenAt 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"JSON.SET lab:sess:j:__rand_int__ $.lastSeenAt 1764000999000","176366.86","0.243","0.064","0.239","0.351","0.455","1.239"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 10000 EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:__rand_int__ 3 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 15ceca2f43e78f352e616e07d60447b4970b67e8 1 lab:sess:h:__rand_int__ 3 1764000999000","278551.53","2.789","0.168","2.775","3.127","3.519","4.527"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 10000 EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:__rand_int__ 3 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"EVALSHA 319aa6637a510a0ab40dfa721c77fc4e747f3931 1 lab:sess:j:__rand_int__ 3 1764000999000","114416.48","6.871","1.488","6.839","7.623","8.047","8.495"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 10000 JSON.MERGE lab:sess:jw:__rand_int__ $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"JSON.MERGE lab:sess:jw:__rand_int__ $[?(@.state=="ACTIVE" && @.authVersion==3)] {"lastSeenAt":1764000999000}","84317.03","9.376","0.520","9.167","10.607","17.679","24.783"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 10000 HSET lab:sess:h:__rand_int__ lastSeenAt 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"HSET lab:sess:h:__rand_int__ lastSeenAt 1764000999000","952381.00","0.776","0.160","0.775","0.967","1.103","1.391"
+> redis-benchmark -n 100000 -c 50 -P 16 -r 10000 JSON.SET lab:sess:j:__rand_int__ $.lastSeenAt 1764000999000
+"test","rps","avg_latency_ms","min_latency_ms","p50_latency_ms","p95_latency_ms","p99_latency_ms","max_latency_ms"
+"JSON.SET lab:sess:j:__rand_int__ $.lastSeenAt 1764000999000","398406.41","1.927","0.480","1.927","2.143","2.359","2.855"
+
+===== 요약 (label,pipeline,rps,p50_ms,p99_ms) =====
+label,pipeline,rps,p50_ms,p99_ms
+hash-lua,1,145348.83,0.295,0.663
+json-lua,1,79872.20,0.591,0.943
+json-filter-merge,1,66533.60,0.711,1.095
+base-hset,1,255754.47,0.111,0.247
+base-json-set,1,176366.86,0.239,0.455
+hash-lua,16,278551.53,2.775,3.519
+json-lua,16,114416.48,6.839,8.047
+json-filter-merge,16,84317.03,9.167,17.679
+base-hset,16,952381.00,0.775,1.103
+base-json-set,16,398406.41,1.927,2.359
